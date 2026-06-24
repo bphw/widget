@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="crypto-dashboard-manifest.json">
+
+<title>Crypto Dashboard</title>
+
+<style>
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: #0f172a;
+    color: #e5e7eb;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 18px;
+    margin: 12px 0;
+  }
+
+  .topbar {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+
+  button {
+    background: #1e293b;
+    border: none;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 10px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* ✅ 2 columns */
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .card {
+    background: #1e293b;
+    border-radius: 14px;
+    padding: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .card.green {
+    background: #064e3b; /* ✅ green highlight */
+  }
+
+  .symbol {
+    font-size: 14px;
+    color: #94a3b8;
+  }
+
+  .price {
+    font-size: 18px;
+    font-weight: bold;
+  }
+
+  .idr {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .target {
+    font-size: 11px;
+    margin-top: 4px;
+    color: #facc15;
+  }
+
+  .change {
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .greenText { color: #22c55e; }
+  .redText { color: #ef4444; }
+
+</style>
+</head>
+
+<body>
+
+<h1>Crypto</h1>
+
+<div class="topbar">
+  <button onclick="loadData()">🔄</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+
+// ✅ Map symbol → coingecko id
+const coinMap = {
+  BTC: "bitcoin",
+  SOL: "solana",
+  LPT: "livepeer",
+  TKO: "tokocrypto",
+  TAO: "bittensor",
+  ETH: "ethereum",
+  USDT: "tether",
+  XRP: "xrp",
+  TRX: "tron",
+  BNB: "bnb",
+  HYPE: "hyperliquid",
+  ZEC: "zcash",
+  XMR: "monero",
+  XLM: "stellar",
+  ADA: "cardano",
+  GRAM: "gram"
+};
+
+// ✅ UPDATE these URLs to your GitHub RAW links
+const COINS_URL = "https://raw.githubusercontent.com/bphw/widget/main/coins.json";
+const TARGET_URL = "https://raw.githubusercontent.com/bphw/widget/main/target.json";
+
+async function loadData() {
+  try {
+    const [coinRes, targetRes] = await Promise.all([
+      fetch(`${COINS_URL}?t=${Date.now()}`),
+      fetch(`${TARGET_URL}?t=${Date.now()}`)
+    ]);
+
+    const symbols = await coinRes.json();
+    const targetArr = await targetRes.json();
+
+    // convert target array -> object
+    const targets = targetArr[0] || {};
+
+    const ids = symbols.map(s => coinMap[s]).filter(Boolean);
+
+    const priceRes = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(",")}&vs_currencies=usd,idr&include_24hr_change=true`
+    );
+
+    const priceData = await priceRes.json();
+
+    render(symbols, priceData, targets);
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function render(symbols, data, targets) {
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+
+  symbols.forEach(sym => {
+    const id = coinMap[sym];
+    if (!id) return;
+
+    const usd = data[id]?.usd;
+    const idr = data[id]?.idr;
+    const change = data[id]?.usd_24h_change;
+    const target = targets[sym];
+
+    const isHit = target && usd <= target;
+
+    const card = document.createElement("div");
+    card.className = "card" + (isHit ? " green" : "");
+
+    card.onclick = () => {
+      window.open(`https://www.coingecko.com/en/coins/${id}/idr`, "_blank");
+    };
+
+    const changeClass = change >= 0 ? "greenText" : "redText";
+    const arrow = change >= 0 ? "▲" : "▼";
+
+    card.innerHTML = `
+      <div class="symbol">${sym}</div>
+      <div class="price">$${usd?.toLocaleString() || "-"}</div>
+      <div class="idr">Rp ${idr?.toLocaleString() || "-"}</div>
+      <div class="change ${changeClass}">
+        ${change ? arrow + " " + change.toFixed(2) + "%" : ""}
+      </div>
+      ${target ? `<div class="target">Target: $${target}</div>` : ""}
+    `;
+
+    grid.appendChild(card);
+  });
+}
+
+loadData();
+setInterval(loadData, 60000);
+
+</script>
+
+</body>
+</html>
